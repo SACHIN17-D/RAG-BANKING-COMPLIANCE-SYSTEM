@@ -1,0 +1,38 @@
+{
+  "admin": {
+    "username": "admin",
+    "full_name": "System Administrator",
+    "email": "admin@fdic-rag.internal",
+    "hashed_password": "da23a2a086109e8fe23c8475a5fdf6fc$4bc62d5b2ae56d6e0fe6659214b6136b2c3ae7bedaf48b79a0d0335d922c5a77",
+    "role": "admin",
+    "company_id": "*",
+    "created_at": "2026-10-09 11:27:12"
+  },
+  "manager": {
+    "username": "manager",
+    "full_name": "FDIC Credit Risk Manager",
+    "email": "manager@fdic-bank.com",
+    "hashed_password": "ccbe964d9a0ec361fc3bd42d95f5af7d$4784f9b0196cf52cfbf7c550c140f9d08696aec91d998c46242eebc6f5a98b9f",
+    "role": "manager",
+    "company_id": "default_fdic",
+    "created_at": "2026-10-09 11:27:12"
+  },
+  "analyst": {
+    "username": "analyst",
+    "full_name": "Credit Risk Analyst",
+    "email": "analyst@fdic-bank.com",
+    "hashed_password": "8065e76c83e1e29b74075f4a8b99a47d$5d2f9f9046d3b174c51804544158050aa34fda48251295f7d64f6292aa857d14",
+    "role": "analyst",
+    "company_id": "default_fdic",
+    "created_at": "2026-10-09 11:27:12"
+  },
+  "rbic_manager": {
+    "username": "rbic_manager",
+    "full_name": "RBIC Compliance Manager",
+    "email": "compliance@rbic-bank.com",
+    "hashed_password": "8ccc51f4c259b985749b507698067eef$ea79326b7556a3095fc7940988c209c51eb4ce8249980ed7fb6c854f13c79109",
+    "role": "manager",
+    "company_id": "rbic_compliance",
+    "created_at": "2026-10-09 17:20:05"
+  }
+}

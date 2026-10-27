@@ -1,0 +1,425 @@
+"""
+===================================================================================
+FILE: create_and_upload_rbic_policy.py
+ROLE: Generates RBIC Compliance Policy PDF and Ingests into ChromaDB
+===================================================================================
+"""
+import os
+import sys
+import time
+import json
+from pathlib import Path
+
+# Add project root to sys.path
+root_dir = Path(__file__).resolve().parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+
+import config
+from app import get_chroma_manager, get_companies_registry, save_companies_registry
+import auth
+
+
+def generate_rbic_pdf(output_path: Path):
+    """
+    Generates a valid, multi-page PDF-1.4 containing structured RBIC compliance policies.
+    """
+    pages_content = [
+        # PAGE 1: TITLE & BORROWER ELIGIBILITY
+        """%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 6 0 R 9 0 R 12 0 R 15 0 R 18 0 R] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 21 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+21 0 obj
+<< /Length 1250 >>
+stream
+BT
+/F1 18 Tf
+50 740 Td
+(RESERVE BANK & RBIC COMMERCIAL LOAN COMPLIANCE MANUAL) Tj
+/F1 12 Tf
+0 -25 Td
+(CREDIT RISK ASSESSMENT, STATUTORY NORMS & PRUDENTIAL GUIDELINES) Tj
+/F2 10 Tf
+0 -20 Td
+(Document Ref: RBIC/PRUD/2026-CR-08 | Compliance Mandatory for Commercial Lending) Tj
+/F1 12 Tf
+0 -30 Td
+(SECTION 1: BORROWER STATUTORY ELIGIBILITY & CRILC VERIFICATION) Tj
+/F2 10 Tf
+0 -18 Td
+(1.1 Legal Entity Identifier (LEI): Mandatory for all aggregate exposures of INR 50 Crores / $10M and above.) Tj
+0 -15 Td
+(1.2 CRILC Verification: Mandatory pre-sanction screening of Central Repository of Information on Large Credits.) Tj
+0 -15 Td
+(1.3 Willful Defaulters & Non-Cooperative Borrowers: Zero exposure permitted to entities on RBI / CIBIL suit-filed lists.) Tj
+0 -15 Td
+(1.4 KYC & Anti-Money Laundering (AML): Ultimate Beneficial Ownership (UBO) identification for stakes > 10%.) Tj
+0 -15 Td
+(1.5 Priority Sector Lending (PSL): Target 40% of Adjusted Net Bank Credit (ANBC) across Agriculture and MSME.) Tj
+0 -25 Td
+(1.6 Statutory Restrictions: Section 20 of Banking Regulation Act prohibits loans against bank's own shares) Tj
+0 -15 Td
+(and credit facilities to directors, senior executives, or their closely held corporate interests without Board approval.) Tj
+0 -25 Td
+(1.7 Red-Flag Indicators: Immediate escalation if borrower exhibits diversion of funds, unhedged foreign exchange) Tj
+0 -15 Td
+(exposure exceeding 25% of net worth, or unexplained auditor resignations within the preceding 24 months.) Tj
+ET
+endstream
+endobj
+""",
+        # PAGE 2: CREDIT UNDERWRITING & FINANCIAL RATIOS
+        """6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 22 0 R >>
+endobj
+22 0 obj
+<< /Length 1350 >>
+stream
+BT
+/F1 14 Tf
+50 740 Td
+(SECTION 2: MANDATORY FINANCIAL BENCHMARK RATIOS & UNDERWRITING) Tj
+/F1 11 Tf
+0 -25 Td
+(2.1 Debt Service Coverage Ratio (DSCR):) Tj
+/F2 10 Tf
+0 -16 Td
+(Minimum average DSCR for commercial term loans is strictly set at 1.50x over the entire loan tenure.) Tj
+0 -14 Td
+(No single annual projected DSCR shall dip below 1.25x under stressed sensitivity analysis scenarios.) Tj
+/F1 11 Tf
+0 -22 Td
+(2.2 Current Ratio & Working Capital Liquidity:) Tj
+/F2 10 Tf
+0 -16 Td
+(Minimum Current Ratio is established at 1.33x for operating cash credit and overdraft commercial facilities.) Tj
+/F1 11 Tf
+0 -22 Td
+(2.3 Total Outside Liabilities to Tangible Net Worth (TOL / TNW):) Tj
+/F2 10 Tf
+0 -16 Td
+(Maximum allowable TOL/TNW leverage ratio is capped at 3.50x for manufacturing and 4.00x for trading sectors.) Tj
+/F1 11 Tf
+0 -22 Td
+(2.4 Interest Coverage Ratio (ICR):) Tj
+/F2 10 Tf
+0 -16 Td
+(EBITDA divided by gross interest expense must maintain a minimum threshold of 2.00x at all quarterly reviews.) Tj
+/F1 11 Tf
+0 -22 Td
+(2.5 Promoters Equity & Margin Money Contribution:) Tj
+/F2 10 Tf
+0 -16 Td
+(Promoters must infuse minimum 25% of project cost upfront as unencumbered equity before first debt drawdown.) Tj
+/F1 11 Tf
+0 -22 Td
+(2.6 Working Capital Assessment Methods:) Tj
+/F2 10 Tf
+0 -16 Td
+(Turnover Method (Nayak Committee) applicable for limits up to INR 5 Crores (20% of projected annual gross turnover).) Tj
+0 -14 Td
+(Cash Budget Method mandatory for seasonal industries, construction contractors, and software exporters.) Tj
+ET
+endstream
+endobj
+""",
+        # PAGE 3: LTV LIMITS & COLLATERAL VALUATION
+        """9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 23 0 R >>
+endobj
+23 0 obj
+<< /Length 1350 >>
+stream
+BT
+/F1 14 Tf
+50 740 Td
+(SECTION 3: LOAN-TO-VALUE (LTV) LIMITS & COLLATERAL SECURITY NORMS) Tj
+/F1 11 Tf
+0 -25 Td
+(3.1 Commercial Real Estate (CRE) LTV Limits:) Tj
+/F2 10 Tf
+0 -16 Td
+(Maximum LTV for Commercial Real Estate and Office Construction loans is capped at 75% of realizable value.) Tj
+0 -14 Td
+(Appraisal valuations must be conducted by two independent empanelled registered valuers for loans > INR 10 Crores.) Tj
+/F1 11 Tf
+0 -22 Td
+(3.2 Residential Housing Loan LTV Framework:) Tj
+/F2 10 Tf
+0 -16 Td
+(- Loans up to INR 30 Lakhs ($40k): Maximum LTV of 90% (Risk weight: 35%).) Tj
+0 -14 Td
+(- Loans above INR 30 Lakhs up to INR 75 Lakhs: Maximum LTV of 80% (Risk weight: 50%).) Tj
+0 -14 Td
+(- Loans above INR 75 Lakhs: Maximum LTV of 75% (Risk weight: 75%).) Tj
+/F1 11 Tf
+0 -22 Td
+(3.3 Mandatory CERSAI Registration:) Tj
+/F2 10 Tf
+0 -16 Td
+(All equitable and registered mortgages on immovable collateral must be registered with CERSAI within 30 days.) Tj
+0 -14 Td
+(Failure to complete CERSAI filing within 30 days results in mandatory audit classification as Documentation Defect.) Tj
+/F1 11 Tf
+0 -22 Td
+(3.4 Title Search & Legal Scrutiny Reports (TSR):) Tj
+/F2 10 Tf
+0 -16 Td
+(Clear and marketable title search is mandatory for continuous 30-year chain of ownership from approved panel lawyers.) Tj
+/F1 11 Tf
+0 -22 Td
+(3.5 Insurance Coverage & Stock Audits:) Tj
+/F2 10 Tf
+0 -16 Td
+(Comprehensive fire, earthquake, and flood insurance with Bank Hypothecation Clause mandatory for 100% of collateral.) Tj
+0 -14 Td
+(Annual physical stock and book-debt inspection by independent Chartered Accountants required for limits > INR 5 Crores.) Tj
+ET
+endstream
+endobj
+""",
+        # PAGE 4: ASSET CLASSIFICATION & NPA PROVISIONING
+        """12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 24 0 R >>
+endobj
+24 0 obj
+<< /Length 1400 >>
+stream
+BT
+/F1 14 Tf
+50 740 Td
+(SECTION 4: PRUDENTIAL ASSET CLASSIFICATION & PROVISIONING NORMS) Tj
+/F1 11 Tf
+0 -25 Td
+(4.1 Special Mention Account (SMA) Early Warning Sub-Categories:) Tj
+/F2 10 Tf
+0 -16 Td
+(- SMA-0: Principal or interest payment overdue between 1 to 30 days.) Tj
+0 -14 Td
+(- SMA-1: Principal or interest payment overdue between 31 to 60 days (Escalate to Joint Lenders Forum).) Tj
+0 -14 Td
+(- SMA-2: Principal or interest payment overdue between 61 to 90 days (Mandatory CRILC reporting & asset review).) Tj
+/F1 11 Tf
+0 -22 Td
+(4.2 Non-Performing Asset (NPA) Classification Criteria:) Tj
+/F2 10 Tf
+0 -16 Td
+(An account is classified as NPA if interest or principal instalment remains overdue for greater than 90 days.) Tj
+0 -14 Td
+(Out of Order Status: CC/OD account is NPA if outstanding balance continuously exceeds sanction limit for 90 days.) Tj
+/F1 11 Tf
+0 -22 Td
+(4.3 Prudential Provisioning Requirements on Assets:) Tj
+/F2 10 Tf
+0 -16 Td
+(- Standard Assets: 0.40% general commercial; 1.00% Commercial Real Estate (CRE); 0.25% direct agriculture & SME.) Tj
+0 -14 Td
+(- Substandard Assets (NPA up to 12 months): 15% provision on secured portion; 25% on unsecured exposure.) Tj
+0 -14 Td
+(- Doubtful-1 (D1, 1-2 years as NPA): 25% secured provision + 100% unsecured provision.) Tj
+0 -14 Td
+(- Doubtful-2 (D2, 2-3 years as NPA): 40% secured provision + 100% unsecured provision.) Tj
+0 -14 Td
+(- Doubtful-3 (D3, >3 years as NPA): 100% provision on total exposure.) Tj
+0 -14 Td
+(- Loss Assets: 100% complete write-off or provision.) Tj
+ET
+endstream
+endobj
+""",
+        # PAGE 5: LARGE EXPOSURE FRAMEWORK & CONCENTRATION
+        """15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 25 0 R >>
+endobj
+25 0 obj
+<< /Length 1300 >>
+stream
+BT
+/F1 14 Tf
+50 740 Td
+(SECTION 5: LARGE EXPOSURE FRAMEWORK (LEF) & CONCENTRATION LIMITS) Tj
+/F1 11 Tf
+0 -25 Td
+(5.1 Single Borrower Exposure Ceiling:) Tj
+/F2 10 Tf
+0 -16 Td
+(The sum of all exposure values of a bank to a single counterparty cannot exceed 20% of Bank's Tier 1 Capital base.) Tj
+0 -14 Td
+(In exceptional circumstances, Bank Board of Directors may approve additional 5% exposure up to 25% maximum.) Tj
+/F1 11 Tf
+0 -22 Td
+(5.2 Connected Group Counterparties Limit:) Tj
+/F2 10 Tf
+0 -16 Td
+(Total exposure to a group of connected borrowers must not exceed 25% of the Bank's Eligible Tier 1 Capital.) Tj
+/F1 11 Tf
+0 -22 Td
+(5.3 Real Estate & Capital Market Exposure Limits:) Tj
+/F2 10 Tf
+0 -16 Td
+(- Total Capital Market Exposure (CME): Capped at 40% of bank's net worth.) Tj
+0 -14 Td
+(- Direct equity investment in corporate shares capped at 10% of bank's paid-up capital and reserves.) Tj
+/F1 11 Tf
+0 -22 Td
+(5.4 Unhedged Foreign Currency Exposure (UFCE):) Tj
+/F2 10 Tf
+0 -16 Td
+(Borrowers with unhedged FX exposures face mandatory incremental capital risk weights (20% to 100%) and) Tj
+0 -14 Td
+(incremental provisioning of 10 to 40 basis points based on projected annual FX volatility earnings loss.) Tj
+ET
+endstream
+endobj
+""",
+        # PAGE 6: ESG DUE DILIGENCE & DISBURSEMENT CHECKLIST
+        """18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 26 0 R >>
+endobj
+26 0 obj
+<< /Length 1300 >>
+stream
+BT
+/F1 14 Tf
+50 740 Td
+(SECTION 6: ESG DUE DILIGENCE & PRE-DISBURSEMENT CHECKLIST) Tj
+/F1 11 Tf
+0 -25 Td
+(6.1 Environmental & Social Risk Assessment:) Tj
+/F2 10 Tf
+0 -16 Td
+(Phase 1 Environmental Site Assessment (ESA) mandatory for all chemical, textile, mining, and heavy industrial units.) Tj
+0 -14 Td
+(Consent to Establish (CTE) and Consent to Operate (CTO) from State Pollution Control Board mandatory prior to loan release.) Tj
+/F1 11 Tf
+0 -22 Td
+(6.2 End-Use of Funds Monitoring:) Tj
+/F2 10 Tf
+0 -16 Td
+(Direct disbursement into supplier/vendor accounts mandatory. Cash withdrawals or transfers to group affiliates strictly barred.) Tj
+0 -14 Td
+(Quarterly Chartered Accountant certificate confirming end-use verification required for all credit lines > INR 1 Crore.) Tj
+/F1 11 Tf
+0 -22 Td
+(6.3 Pre-Disbursement Compliance Checklist (Sign-Off by Credit Committee):) Tj
+/F2 10 Tf
+0 -16 Td
+([ ] 1. Sanction terms and debt covenants accepted in writing by borrower authorized signatories.) Tj
+0 -14 Td
+([ ] 2. Personal and Corporate Guarantees executed with verified net worth statements.) Tj
+0 -14 Td
+([ ] 3. First Charge registered with ROC (Ministry of Corporate Affairs) within 30 days of sanction.) Tj
+0 -14 Td
+([ ] 4. CERSAI security identification number generated and stored in loan records.) Tj
+0 -14 Td
+([ ] 5. Credit Life and Asset Insurance policies assigned in favor of the lending bank.) Tj
+ET
+endstream
+endobj
+xref
+0 27
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000155 00000 n 
+0000000282 00000 n 
+0000000355 00000 n 
+0000001850 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000003450 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000005050 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000006700 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000008250 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000422 00000 n 
+0000001977 00000 n 
+0000003577 00000 n 
+0000005177 00000 n 
+0000006827 00000 n 
+0000008377 00000 n 
+trailer
+<< /Size 27 /Root 1 0 R >>
+startxref
+9850
+%%EOF
+"""
+    ]
+
+    full_pdf_bytes = "".join(pages_content).encode('latin-1')
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "wb") as f:
+        f.write(full_pdf_bytes)
+    print(f"[PDF Generator] Successfully created {output_path} ({len(full_pdf_bytes)} bytes).")
+
+
+def main():
+    company_id = "rbic_compliance"
+    company_name = "RBIC Regulatory Compliance Bank"
+    pdf_filename = "rbic_compliance_checking_policy.pdf"
+
+    company_dir = config.get_company_dir(company_id)
+    pdf_path = company_dir / pdf_filename
+
+    # 1. Generate PDF document
+    generate_rbic_pdf(pdf_path)
+
+    # 2. Ingest into ChromaDB collection
+    print(f"[ChromaDB Ingestion] Indexing document for workspace '{company_name}' ({company_id})...")
+    col_name = config.get_company_collection_name(company_id)
+    manager = get_chroma_manager()
+    manager.set_collection(col_name)
+    manager.load_and_index_documents(pdf_path=pdf_path, force_reload=True)
+
+    chunk_count = manager.collection.count() if manager.collection else 0
+    print(f"[ChromaDB Ingestion] Successfully indexed {chunk_count} chunks into collection '{col_name}'.")
+
+    # 3. Update companies registry
+    registry = get_companies_registry()
+    registry[company_id] = {
+        "id": company_id,
+        "name": company_name,
+        "pdf_name": pdf_filename,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "total_chunks": chunk_count
+    }
+    save_companies_registry(registry)
+    print(f"[Registry] Workspace '{company_name}' saved to {config.COMPANIES_REGISTRY_FILE}.")
+
+    # 4. Also register a dedicated Manager user for this tenant
+    users = auth.get_users_db()
+    users["rbic_manager"] = {
+        "username": "rbic_manager",
+        "full_name": "RBIC Compliance Manager",
+        "email": "compliance@rbic-bank.com",
+        "hashed_password": auth.hash_password("manager123"),
+        "role": auth.ROLE_MANAGER,
+        "company_id": company_id,
+        "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    auth.save_users_db(users)
+    print("[User Registry] Added 'rbic_manager' demo account.")
+
+
+if __name__ == "__main__":
+    main()

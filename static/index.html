@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrediSense AI — Commercial Loan & Credit Policy RAG</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- TOP NAVIGATION HEADER -->
+        <header class="app-header">
+            <div class="header-brand">
+                <div class="brand-logo">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <div class="brand-info">
+                    <h1>CrediSense AI</h1>
+                    <p class="brand-subtitle">Smart Reasoning & Grounded Compliance for Commercial Loan Underwriting</p>
+                </div>
+            </div>
+
+            <div class="header-status-group">
+                <!-- ACTIVE DOCUMENT BADGE -->
+                <div class="active-doc-badge-pill" id="activeDocBadge">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <span id="activeDocNameText">Loading Policy...</span>
+                </div>
+
+                <!-- REPLACE POLICY PDF BUTTON -->
+                <button id="openUploadModalBtn" class="upload-pill-btn" title="Upload a new PDF to replace current policy">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                    <span>Replace / Upload Policy</span>
+                </button>
+
+                <!-- STATUS PILL -->
+                <div class="status-pill" id="statusPill">
+                    <span class="status-dot"></span>
+                    <span id="statusText">Connecting...</span>
+                </div>
+                
+                <!-- MODEL BADGE -->
+                <div class="model-badge">
+                    <i class="fa-solid fa-microchip"></i>
+                    <span>Nomic 1.5 + Groq 120B</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN TABS NAVIGATION -->
+        <nav class="main-tabs">
+            <button class="tab-btn active" data-tab="chatTab">
+                <i class="fa-solid fa-comments"></i> RAG AI Assistant
+            </button>
+            <button class="tab-btn" data-tab="explorerTab">
+                <i class="fa-solid fa-database"></i> Vector Explorer
+            </button>
+            <button class="tab-btn" data-tab="configTab">
+                <i class="fa-solid fa-sliders"></i> System Config & Metrics
+            </button>
+        </nav>
+
+        <!-- MAIN CONTENT PANELS -->
+        <main class="content-area">
+            
+            <!-- TAB 1: RAG CHAT ASSISTANT -->
+            <section id="chatTab" class="tab-panel active">
+                <div class="chat-layout">
+                    
+                    <!-- PRESET SCENARIOS BAR -->
+                    <div class="presets-wrapper">
+                        <span class="presets-label"><i class="fa-solid fa-bolt"></i> Policy Presets:</span>
+                        <div class="preset-chips" id="presetChipsContainer">
+                            <button class="chip-btn" data-query="What is the minimum DSCR and Current Ratio required under the policy?">
+                                📊 DSCR & Current Ratio
+                            </button>
+                            <button class="chip-btn" data-query="What are the maximum LTV limits for Commercial Real Estate (CRE) and residential loans?">
+                                🏢 CRE & Housing LTV Limits
+                            </button>
+                            <button class="chip-btn" data-query="What is the threshold for mandatory Legal Entity Identifier (LEI) and CRILC verification?">
+                                🔍 LEI & CRILC Verification
+                            </button>
+                            <button class="chip-btn" data-query="Explain the difference between SMA-0, SMA-1, and SMA-2 accounts, and NPA provisioning rates.">
+                                ⚠️ SMA & NPA Provisioning
+                            </button>
+                            <button class="chip-btn" data-query="What are the mandatory pre-disbursement compliance checklist items and CERSAI filing deadline?">
+                                📑 Pre-Disbursement Checklist
+                            </button>
+                            <button class="chip-btn" data-query="What is the single counterparty and connected group exposure limit under the Large Exposure Framework?">
+                                🛡️ Large Exposure Limits
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- CHAT HISTORY DISPLAY CONTAINER -->
+                    <div class="chat-history" id="chatHistory">
+                        <!-- Welcome / Initial Banner -->
+                        <div class="welcome-card">
+                            <div class="welcome-icon">
+                                <i class="fa-solid fa-shield-halved"></i>
+                            </div>
+                            <h2>CrediSense AI Underwriting Copilot</h2>
+                            <p>Ask any underwriting question, risk policy requirement, or loan structuring scenario. Every answer is generated strictly from the active policy manual ground truth with exact citations and zero hallucination.</p>
+                            
+                            <div class="feature-bullets">
+                                <div><i class="fa-solid fa-circle-check"></i> <span>768-dim Asymmetric Nomic Vector Embeddings</span></div>
+                                <div><i class="fa-solid fa-circle-check"></i> <span>Real-Time Token SSE Streaming & Multi-Turn Context</span></div>
+                                <div><i class="fa-solid fa-circle-check"></i> <span>Page & Chunk Exact Citations</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CHAT INPUT & PARAMETERS PANEL -->
+                    <div class="chat-input-panel">
+                        <div class="hyperparams-bar">
+                            <div class="param-item">
+                                <label for="topKInput">
+                                    <i class="fa-solid fa-layer-group"></i> Top Chunks (K):
+                                </label>
+                                <select id="topKInput" class="param-select">
+                                    <option value="2">2 Chunks</option>
+                                    <option value="4" selected>4 Chunks (Default)</option>
+                                    <option value="6">6 Chunks</option>
+                                    <option value="8">8 Chunks</option>
+                                </select>
+                            </div>
+
+                            <div class="param-item">
+                                <label for="minScoreSlider">
+                                    <i class="fa-solid fa-filter"></i> Min Score Threshold: 
+                                    <span id="minScoreValue" class="param-val">0.20</span>
+                                </label>
+                                <input type="range" id="minScoreSlider" min="0.0" max="0.80" step="0.05" value="0.20" class="param-slider">
+                            </div>
+
+                            <button class="export-report-btn" id="exportReportBtn" title="Export Conversation & Citations Report">
+                                <i class="fa-solid fa-file-export"></i> Export Report
+                            </button>
+                            <button class="clear-chat-btn" id="clearChatBtn" title="Clear Chat History">
+                                <i class="fa-solid fa-trash-can"></i> Clear History
+                            </button>
+                        </div>
+
+                        <form id="chatForm" class="input-form">
+                            <div class="textarea-wrapper">
+                                <textarea id="queryInput" placeholder="Type your loan underwriting query or policy question..." rows="2" required></textarea>
+                                <button type="submit" id="sendBtn" class="send-btn">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                    <span>Send</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- TAB 2: VECTOR EXPLORER -->
+            <section id="explorerTab" class="tab-panel">
+                <div class="explorer-container">
+                    <div class="explorer-header">
+                        <h2><i class="fa-solid fa-magnifying-glass"></i> Policy Vector Explorer</h2>
+                        <p>Search raw vector chunks in ChromaDB to inspect embeddings, similarity scores, and policy text chunks directly.</p>
+                    </div>
+
+                    <div class="explorer-search-bar">
+                        <input type="text" id="explorerQueryInput" placeholder="Enter keywords or topic (e.g. debt service coverage, LTV, collateral, appraisal)...">
+                        <button id="explorerSearchBtn" class="primary-btn">
+                            <i class="fa-solid fa-search"></i> Search Vectors
+                        </button>
+                    </div>
+
+                    <div id="explorerResults" class="explorer-results">
+                        <div class="empty-state">
+                            <i class="fa-solid fa-cubes-stacked"></i>
+                            <p>Enter a query above to explore matching chunks from ChromaDB.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: SYSTEM CONFIG & METRICS -->
+            <section id="configTab" class="tab-panel">
+                <div class="config-container">
+                    <div class="config-header">
+                        <h2><i class="fa-solid fa-chart-pie"></i> System Health & Configuration Metrics</h2>
+                        <p>Real-time view of your vector database, embedding pipeline, and Groq LLM settings.</p>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-icon"><i class="fa-solid fa-database"></i></div>
+                            <div class="metric-data">
+                                <span class="metric-label">Vector Store Status</span>
+                                <h3 id="mDbStatus">Checking...</h3>
+                                <span id="mChunkCount" class="metric-sub">0 Document Chunks</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card">
+                            <div class="metric-icon"><i class="fa-solid fa-diagram-project"></i></div>
+                            <div class="metric-data">
+                                <span class="metric-label">Embedding Model</span>
+                                <h3 id="mEmbedModel">nomic-embed-text-v1.5</h3>
+                                <span id="mEmbedDim" class="metric-sub">768-dimensional Matryoshka</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card">
+                            <div class="metric-icon"><i class="fa-solid fa-brain"></i></div>
+                            <div class="metric-data">
+                                <span class="metric-label">LLM Model</span>
+                                <h3 id="mLlmModel">openai/gpt-oss-120b</h3>
+                                <span id="mGroqKey" class="metric-sub">Groq API Key Active</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card">
+                            <div class="metric-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                            <div class="metric-data">
+                                <span class="metric-label">Active Policy Document</span>
+                                <h3 id="mPdfName">Loading...</h3>
+                                <span class="metric-sub">ChromaDB Collection: active_policy_document</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="actions-card">
+                        <h3><i class="fa-solid fa-arrows-rotate"></i> Document Ingestion & Maintenance</h3>
+                        <p>Need to refresh vector embeddings or re-chunk the active policy PDF document?</p>
+                        <button id="reindexBtn" class="action-btn warning">
+                            <i class="fa-solid fa-arrows-spin"></i> Force Re-index Active Document
+                        </button>
+                        <div id="reindexStatus" class="reindex-status"></div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- UPLOAD & REPLACE POLICY PDF MODAL -->
+    <div id="uploadModal" class="modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    <h3>Upload & Replace Policy Document</h3>
+                </div>
+                <button id="closeUploadModalBtn" class="modal-close-btn">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <p class="modal-desc">
+                    Upload your new or updated PDF policy manual. The previous document will be replaced, and the system will extract the pages, generate 768-dim Nomic embeddings, and update the vector database immediately.
+                </p>
+
+                <!-- Dropzone for new PDF -->
+                <div class="dropzone" id="dropzone">
+                    <i class="fa-solid fa-cloud-arrow-up dropzone-icon"></i>
+                    <h4>Drag & Drop your policy PDF here</h4>
+                    <p>or click to browse from your computer</p>
+                    <input type="file" id="pdfFileInput" accept=".pdf" style="display:none;">
+                    <button type="button" class="browse-btn" onclick="document.getElementById('pdfFileInput').click()">
+                        <i class="fa-solid fa-folder-open"></i> Browse Files
+                    </button>
+                    <div id="selectedFileName" class="selected-file-info"></div>
+                </div>
+
+                <div id="uploadProgress" class="upload-progress-container" style="display: none;">
+                    <div class="progress-bar-bg">
+                        <div id="uploadProgressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <span id="uploadProgressText" class="progress-text">Indexing document...</span>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="cancelUploadBtn" class="secondary-btn">Cancel</button>
+                <button id="confirmUploadBtn" class="primary-btn" disabled>
+                    <i class="fa-solid fa-arrows-rotate"></i> Upload & Replace Policy
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic Script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
