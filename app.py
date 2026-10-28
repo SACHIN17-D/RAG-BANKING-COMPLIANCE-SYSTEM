@@ -359,6 +359,14 @@ async def health_check():
     return {"status": "ok", "app": "CrediSense AI Copilot"}
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    fav = config.BASE_DIR / "static" / "favicon.ico"
+    if fav.exists():
+        return FileResponse(fav)
+    return JSONResponse(status_code=204, content={})
+
+
 @app.get("/")
 async def root():
     index_file = config.BASE_DIR / "static" / "index.html"

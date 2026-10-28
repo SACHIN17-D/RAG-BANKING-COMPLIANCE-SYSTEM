@@ -88,9 +88,13 @@ PDF_PATH = DATA_DIR / PDF_FILENAME
 # Base default collection name inside ChromaDB
 COLLECTION_NAME = get_company_collection_name(DEFAULT_COMPANY_ID)
 
-# Nomic Embed Text v1.5 model name (produces 768-dimensional Matryoshka embeddings)
-EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "nomic-ai/nomic-embed-text-v1.5")
-EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", "768"))
+# Nomic Embed Text v1.5 model name (or lightweight all-MiniLM-L6-v2 for cloud 512MB RAM free tiers)
+is_render = os.getenv("RENDER", "").lower() == "true"
+default_embed = "sentence-transformers/all-MiniLM-L6-v2" if is_render else "nomic-ai/nomic-embed-text-v1.5"
+default_dim = 384 if is_render else 768
+
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", default_embed)
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", str(default_dim)))
 
 # Default minimum Cosine similarity score threshold (filters out weak matches)
 DEFAULT_MIN_SCORE = float(os.getenv("MIN_SIMILARITY_SCORE", "0.20"))
