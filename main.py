@@ -1,12 +1,16 @@
+import os
 import sys
 import argparse
 from rag_chat import run_cli_chat
 
 def main():
+    default_host = os.getenv("HOST", "0.0.0.0")
+    default_port = int(os.getenv("PORT", "8000"))
+
     parser = argparse.ArgumentParser(description="FDIC Loan Application & Credit Risk RAG Assistant")
     parser.add_argument("--cli", action="store_true", help="Launch terminal interactive CLI chat mode")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Web server host (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=8000, help="Web server port (default: 8000)")
+    parser.add_argument("--host", type=str, default=default_host, help=f"Web server host (default: {default_host})")
+    parser.add_argument("--port", type=int, default=default_port, help=f"Web server port (default: {default_port})")
     args = parser.parse_args()
 
     if args.cli:

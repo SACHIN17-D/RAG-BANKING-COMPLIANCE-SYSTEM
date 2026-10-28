@@ -88,22 +88,28 @@ def save_active_document_info(info: Dict[str, Any]):
         json.dump(info, f, indent=2)
 
 
+import threading
+
 def ensure_active_document_indexed():
     """Ensures the active policy document is loaded into ChromaDB upon startup."""
-    info = get_active_document_info()
-    filename = info.get("filename")
-    if not filename or filename == "No Document Uploaded":
-        return
+    try:
+        info = get_active_document_info()
+        filename = info.get("filename")
+        if not filename or filename == "No Document Uploaded":
+            return
 
-    doc_path = config.DATA_DIR / filename
-    if not doc_path.exists():
-        return
+        doc_path = config.DATA_DIR / filename
+        if not doc_path.exists():
+            return
 
-    manager = get_chroma_manager()
-    manager.set_collection(COLLECTION_NAME)
-    if not manager.is_db_populated():
-        print(f"[Startup] Indexing active policy document '{filename}' into ChromaDB...")
-        manager.load_and_index_documents(pdf_path=doc_path, force_reload=False)
+        manager = get_chroma_manager()
+        manager.set_collection(COLLECTION_NAME)
+        if not manager.is_db_populated():
+            print(f"[Startup] Indexing active policy document '{filename}' into ChromaDB...", flush=True)
+            manager.load_and_index_documents(pdf_path=doc_path, force_reload=False)
+            print(f"[Startup] Completed indexing '{filename}' into ChromaDB.", flush=True)
+    except Exception as e:
+        print(f"[Startup Warning] Background indexing encountered: {e}", flush=True)
 
 
 # =====================================================================
@@ -356,4 +362,6 @@ async def root():
 
 @app.on_event("startup")
 def startup_event():
-    ensure_active_document_indexed()
+    # Run heavy vector initialization in a background thread so Uvicorn can immediately
+    # bind to the port ($PORT on Render/Cloud) without failing healthcheck/port scans.
+    threading.Thread(target=ensure_active_document_indexed, daemon=True).start()
