@@ -352,6 +352,13 @@ if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 
+@app.get("/healthz")
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for cloud hosting providers (Render, Railway, etc.)."""
+    return {"status": "ok", "app": "CrediSense AI Copilot"}
+
+
 @app.get("/")
 async def root():
     index_file = config.BASE_DIR / "static" / "index.html"
