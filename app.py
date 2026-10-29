@@ -43,7 +43,8 @@ from rag_chat import get_llm_response, get_llm_response_stream, sanitize_text
 app = FastAPI(
     title="Loan Policy & Credit Risk RAG Assistant API",
     description="Clean, single-document RAG assistant with instant PDF replacement, 768-dim Nomic vector retrieval, and Groq LLM explanations.",
-    version="3.1.0"
+    version="3.1.0",
+    redirect_slashes=False
 )
 
 # Enable CORS for local development
@@ -174,6 +175,7 @@ class SearchRequest(BaseModel):
 # API ENDPOINTS: STATUS & ACTIVE DOCUMENT
 # =====================================================================
 @app.get("/api/status")
+@app.get("/status")
 async def get_system_status():
     """Returns system status, active policy document name, chunk count, and model settings."""
     info = get_active_document_info()
@@ -205,6 +207,7 @@ async def get_system_status():
 # API ENDPOINTS: UPLOAD & REPLACE DOCUMENT
 # =====================================================================
 @app.post("/api/upload")
+@app.post("/upload")
 async def upload_and_replace_pdf(request: Request):
     """
     Uploads a new policy PDF to replace the previous one, re-indexes ChromaDB,
@@ -299,6 +302,7 @@ async def upload_and_replace_pdf(request: Request):
 # API ENDPOINTS: RAG CHAT & STREAMING
 # =====================================================================
 @app.post("/api/chat/stream")
+@app.post("/chat/stream")
 async def handle_rag_chat_stream(req: ChatRequest):
     """Streams LLM tokens token-by-token using Server-Sent Events (SSE)."""
     info = get_active_document_info()
@@ -392,6 +396,7 @@ async def handle_rag_chat(req: ChatRequest):
 
 
 @app.post("/api/search")
+@app.post("/search")
 async def handle_vector_search(req: SearchRequest):
     """Raw Cosine similarity vector search on the active policy document."""
     manager = get_chroma_manager()
@@ -418,6 +423,7 @@ async def handle_vector_search(req: SearchRequest):
 
 
 @app.post("/api/reindex")
+@app.post("/reindex")
 async def reindex_active_document():
     """Forces re-chunking and re-indexing of the current active policy PDF."""
     info = get_active_document_info()

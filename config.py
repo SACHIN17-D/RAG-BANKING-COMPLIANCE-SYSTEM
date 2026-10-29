@@ -150,11 +150,11 @@ DEFAULT_TOP_K = int(os.getenv("TOP_K", "4"))
 # 5. RECURSIVE TEXT CHUNKING HYPERPARAMETERS
 # Defines chunk character length, overlap, and document section separators.
 # =====================================================================
-# Target character length per chunk
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
+# Target character length per chunk (optimized for high-fidelity compliance context & fast embedding)
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1500"))
 
 # Character overlap between adjacent chunks to preserve context across boundaries
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))
 
 # Custom hierarchy of separators respecting document structure and manual sections
 CHUNK_SEPARATORS = [

@@ -1,19 +1,14 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "app.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxDuration": 60,
-        "memory": 1024
-      }
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "memory": 1024
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "app.py"
+      "source": "/(.*)",
+      "destination": "/api/index.py"
     }
   ]
 }
