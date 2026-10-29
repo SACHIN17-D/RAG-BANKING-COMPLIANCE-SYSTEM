@@ -218,10 +218,17 @@ async def upload_and_replace_pdf(request: Request):
     filename = ""
     content_bytes = b""
 
+    # Read raw body first to allow flexible parsing
+    try:
+        raw_body = await request.body()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read request body: {str(e)}")
+
     # Method 1: JSON payload with Base64 content (Vercel serverless compatible)
-    if "application/json" in content_type:
+    # Try JSON first regardless of content-type header (Vercel may strip/alter headers)
+    if "multipart" not in content_type and "form" not in content_type:
         try:
-            body = await request.json()
+            body = json.loads(raw_body)
             filename = body.get("filename", "").strip()
             raw_b64 = body.get("content_base64", "")
             if not raw_b64:
@@ -230,10 +237,11 @@ async def upload_and_replace_pdf(request: Request):
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON/Base64 payload: {str(e)}")
+            # JSON parse failed — fall through to multipart attempt below
+            content_type = "multipart/form-data"
 
     # Method 2: Standard multipart/form-data (cURL, Postman, non-serverless)
-    else:
+    if not content_bytes:
         try:
             form = await request.form()
             uploaded_file = form.get("file")
