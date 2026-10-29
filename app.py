@@ -485,15 +485,19 @@ async def favicon():
     return Response(status_code=204)
 
 
+@app.get("/api")
+@app.get("/api/")
+async def api_root():
+    return {"status": "online", "message": "CrediSense API is running"}
+
+
 @app.get("/")
 @app.get("/index.html")
 @app.get("/index")
-@app.get("/api")
-@app.get("/api/")
-@app.get("/api/index")
-@app.get("/api/index.py")
 async def root():
     index_file = config.BASE_DIR / "static" / "index.html"
+    if not index_file.exists():
+        index_file = config.BASE_DIR / "public" / "index.html"
     if index_file.exists():
         return FileResponse(index_file)
     return JSONResponse({"status": "running", "message": "Loan Policy RAG Assistant API is online."})

@@ -2,13 +2,12 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "memory": 1024,
-      "includeFiles": "static/**"
+      "memory": 1024
     }
   },
   "rewrites": [
     {
-      "source": "/((?!static|favicon.ico).*)",
+      "source": "/api/(.*)",
       "destination": "/api/index.py"
     }
   ]
