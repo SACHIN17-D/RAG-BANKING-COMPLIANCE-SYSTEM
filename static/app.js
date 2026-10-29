@@ -146,19 +146,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         confirmUploadBtn.disabled = true;
         uploadProgress.style.display = 'block';
-        uploadProgressBar.style.width = '25%';
-        uploadProgressText.textContent = 'Uploading new policy PDF...';
-
-        const formData = new FormData();
-        formData.append('file', selectedFile);
+        uploadProgressBar.style.width = '20%';
+        uploadProgressText.textContent = 'Reading & encoding PDF...';
 
         try {
-            uploadProgressBar.style.width = '60%';
-            uploadProgressText.textContent = 'Extracting pages & generating Nomic vector embeddings...';
+            // Read file as base64 string to ensure 100% reliable transport on Vercel & serverless
+            const base64Content = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const result = reader.result;
+                    const base64 = result.includes(',') ? result.split(',')[1] : result;
+                    resolve(base64);
+                };
+                reader.onerror = error => reject(error);
+                reader.readAsDataURL(selectedFile);
+            });
+
+            uploadProgressBar.style.width = '55%';
+            uploadProgressText.textContent = 'Uploading and generating semantic vector embeddings...';
 
             const res = await fetch('/api/upload', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: selectedFile.name,
+                    content_base64: base64Content
+                })
             });
 
             const data = await res.json();

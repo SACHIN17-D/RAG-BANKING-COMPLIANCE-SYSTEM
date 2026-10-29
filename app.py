@@ -7,11 +7,12 @@ ROLE: FastAPI Backend for Loan Policy & Credit Risk RAG Assistant (Single Docume
 import time
 import os
 import json
+import base64
 import shutil
 import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, Response
@@ -193,17 +194,53 @@ async def get_system_status():
 # API ENDPOINTS: UPLOAD & REPLACE DOCUMENT
 # =====================================================================
 @app.post("/api/upload")
-async def upload_and_replace_pdf(file: UploadFile = File(...)):
+async def upload_and_replace_pdf(request: Request):
     """
     Uploads a new policy PDF to replace the previous one, re-indexes ChromaDB,
     and updates the active policy document immediately.
+    Supports both JSON Base64 (100% reliable on Vercel/serverless) and multipart/form-data.
     """
-    if not file.filename.lower().endswith(".pdf"):
+    content_type = request.headers.get("content-type", "").lower()
+    filename = ""
+    content_bytes = b""
+
+    # Method 1: JSON payload with Base64 content (Vercel serverless compatible)
+    if "application/json" in content_type:
+        try:
+            body = await request.json()
+            filename = body.get("filename", "").strip()
+            raw_b64 = body.get("content_base64", "")
+            if not raw_b64:
+                raise HTTPException(status_code=400, detail="Missing 'content_base64' in upload payload.")
+            content_bytes = base64.b64decode(raw_b64)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON/Base64 payload: {str(e)}")
+
+    # Method 2: Standard multipart/form-data (cURL, Postman, non-serverless)
+    else:
+        try:
+            form = await request.form()
+            uploaded_file = form.get("file")
+            if not uploaded_file:
+                raise HTTPException(status_code=400, detail="No file field provided in form data.")
+            filename = getattr(uploaded_file, "filename", "policy.pdf")
+            content_bytes = await uploaded_file.read()
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Form-data parsing error: {str(e)}")
+
+    if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files (.pdf) are supported.")
+
+    if not content_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded PDF file is empty.")
 
     target_dir = (Path(tempfile.gettempdir()) / "data") if config.is_vercel else config.DATA_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
-    safe_filename = "".join(c for c in file.filename if c.isalnum() or c in (".", "_", "-")).strip()
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in (".", "_", "-")).strip()
     if not safe_filename:
         safe_filename = f"policy_{int(time.time())}.pdf"
 
@@ -212,7 +249,7 @@ async def upload_and_replace_pdf(file: UploadFile = File(...)):
     # Save uploaded PDF to data/
     try:
         with open(target_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            buffer.write(content_bytes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
