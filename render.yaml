@@ -8,8 +8,13 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.6
+      - key: RENDER
+        value: "true"
+      - key: EMBEDDING_MODEL_NAME
+        value: "onnx-all-MiniLM-L6-v2"
+      - key: EMBEDDING_DIM
+        value: "384"
       - key: LLM_MODEL
         value: llama-3.3-70b-versatile
       - key: GROQ_API_KEY
         sync: false
-

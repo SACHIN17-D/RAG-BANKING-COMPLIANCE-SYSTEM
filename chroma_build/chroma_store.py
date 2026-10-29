@@ -101,13 +101,31 @@ class ChromaManager:
         self.collection_name = collection_name
         self.model_name = model_name
         
-        # Select Nomic custom embedding function or default SentenceTransformer function
-        if "nomic" in self.model_name.lower():
-            self.embedding_fn = NomicEmbeddingFunction(model_name=self.model_name)
+        # Select Ultra-Lightweight ONNX function (Zero PyTorch, ~40MB RAM) for cloud/Vercel/Render, or Nomic
+        is_cloud_lightweight = (
+            config.is_cloud
+            or "onnx" in self.model_name.lower()
+            or "minilm" in self.model_name.lower()
+            or "default" in self.model_name.lower()
+        )
+
+        if is_cloud_lightweight:
+            print(f"[ChromaDB Manager] Initializing Ultra-Lightweight ONNX Embedding Function (Zero-PyTorch, ~40MB RAM)...", flush=True)
+            self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
+        elif "nomic" in self.model_name.lower():
+            try:
+                self.embedding_fn = NomicEmbeddingFunction(model_name=self.model_name)
+            except Exception as e:
+                print(f"[ChromaDB Manager] Falling back to DefaultEmbeddingFunction: {e}", flush=True)
+                self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
         else:
-            self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name=self.model_name
-            )
+            try:
+                self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name=self.model_name
+                )
+            except Exception as e:
+                print(f"[ChromaDB Manager] Falling back to DefaultEmbeddingFunction: {e}", flush=True)
+                self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
         self.client = None
         self.collection = None
 

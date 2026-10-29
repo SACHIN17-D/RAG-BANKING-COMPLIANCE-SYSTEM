@@ -8,12 +8,13 @@ import time
 import os
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel, Field
 
 import config
@@ -37,7 +38,7 @@ app.add_middleware(
 )
 
 # Persistent State File
-ACTIVE_STATE_FILE = config.DATA_DIR / "active_doc.json"
+ACTIVE_STATE_FILE = (Path(tempfile.gettempdir()) / "active_doc.json") if config.is_vercel else config.DATA_DIR / "active_doc.json"
 _chroma_manager: Optional[ChromaManager] = None
 COLLECTION_NAME = "active_policy_document"
 
@@ -51,15 +52,15 @@ def get_chroma_manager() -> ChromaManager:
 
 def get_active_document_info() -> Dict[str, Any]:
     """Reads or determines the current active policy document on disk."""
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    
+    active_file = (Path(tempfile.gettempdir()) / "active_doc.json") if config.is_vercel else ACTIVE_STATE_FILE
+
     # Check if saved in active_doc.json
-    if ACTIVE_STATE_FILE.exists():
+    if active_file.exists():
         try:
-            with open(ACTIVE_STATE_FILE, "r", encoding="utf-8") as f:
+            with open(active_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 filename = data.get("filename", "")
-                if filename and (config.DATA_DIR / filename).exists():
+                if filename and ((config.DATA_DIR / filename).exists() or ((Path(tempfile.gettempdir()) / "data") / filename).exists()):
                     return data
         except Exception:
             pass
@@ -69,12 +70,18 @@ def get_active_document_info() -> Dict[str, Any]:
     for p in preferred:
         if (config.DATA_DIR / p).exists():
             info = {"filename": p, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
-            save_active_document_info(info)
+            try:
+                save_active_document_info(info)
+            except Exception:
+                pass
             return info
 
     for p in config.DATA_DIR.glob("*.pdf"):
         info = {"filename": p.name, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
-        save_active_document_info(info)
+        try:
+            save_active_document_info(info)
+        except Exception:
+            pass
         return info
 
     info = {"filename": "No Document Uploaded", "updated_at": ""}
@@ -83,8 +90,9 @@ def get_active_document_info() -> Dict[str, Any]:
 
 def save_active_document_info(info: Dict[str, Any]):
     """Saves the active document metadata to JSON."""
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(ACTIVE_STATE_FILE, "w", encoding="utf-8") as f:
+    active_file = (Path(tempfile.gettempdir()) / "active_doc.json") if config.is_vercel else ACTIVE_STATE_FILE
+    active_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(active_file, "w", encoding="utf-8") as f:
         json.dump(info, f, indent=2)
 
 
@@ -93,12 +101,17 @@ import threading
 def ensure_active_document_indexed():
     """Ensures the active policy document is loaded into ChromaDB upon startup."""
     try:
+        if not config.is_vercel:
+            # Give Uvicorn 1.5 seconds to bind to port and pass Render's port scan before indexing
+            time.sleep(1.5)
         info = get_active_document_info()
         filename = info.get("filename")
         if not filename or filename == "No Document Uploaded":
             return
 
         doc_path = config.DATA_DIR / filename
+        if not doc_path.exists() and config.is_vercel:
+            doc_path = (Path(tempfile.gettempdir()) / "data") / filename
         if not doc_path.exists():
             return
 
@@ -140,6 +153,9 @@ async def get_system_status():
     manager = get_chroma_manager()
     manager.set_collection(COLLECTION_NAME)
     count = manager.collection.count() if manager.collection else 0
+    if count == 0 and config.is_vercel:
+        ensure_active_document_indexed()
+        count = manager.collection.count() if manager.collection else 0
     has_groq = bool(os.getenv("GROQ_API_KEY") or config.GROQ_API_KEY)
 
     return {
@@ -168,12 +184,13 @@ async def upload_and_replace_pdf(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files (.pdf) are supported.")
 
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    target_dir = (Path(tempfile.gettempdir()) / "data") if config.is_vercel else config.DATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
     safe_filename = "".join(c for c in file.filename if c.isalnum() or c in (".", "_", "-")).strip()
     if not safe_filename:
         safe_filename = f"policy_{int(time.time())}.pdf"
 
-    target_path = config.DATA_DIR / safe_filename
+    target_path = target_dir / safe_filename
 
     # Save uploaded PDF to data/
     try:
@@ -223,6 +240,9 @@ async def handle_rag_chat_stream(req: ChatRequest):
     start_time = time.time()
 
     if not manager.collection or manager.collection.count() == 0:
+        ensure_active_document_indexed()
+
+    if not manager.collection or manager.collection.count() == 0:
         async def empty_stream():
             msg = f"⚠️ **No Chunks Indexed**: No policy document is currently indexed. Please upload a PDF policy manual."
             yield f"data: {json.dumps({'type': 'sources', 'sources': [], 'source_count': 0})}\n\n"
@@ -266,6 +286,9 @@ async def handle_rag_chat(req: ChatRequest):
     start_time = time.time()
 
     if not manager.collection or manager.collection.count() == 0:
+        ensure_active_document_indexed()
+
+    if not manager.collection or manager.collection.count() == 0:
         return {
             "query": req.query,
             "answer": "⚠️ No policy document is currently indexed. Please upload a PDF policy manual.",
@@ -303,6 +326,9 @@ async def handle_vector_search(req: SearchRequest):
     manager.set_collection(COLLECTION_NAME)
 
     start_time = time.time()
+    if not manager.collection or manager.collection.count() == 0:
+        ensure_active_document_indexed()
+
     if not manager.collection or manager.collection.count() == 0:
         results = []
     else:
@@ -364,7 +390,7 @@ async def favicon():
     fav = config.BASE_DIR / "static" / "favicon.ico"
     if fav.exists():
         return FileResponse(fav)
-    return JSONResponse(status_code=204, content={})
+    return Response(status_code=204)
 
 
 @app.get("/")

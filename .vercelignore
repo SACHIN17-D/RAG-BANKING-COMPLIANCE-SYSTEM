@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.env
+chroma_db/
+sample_test_pdfs/
+tests/
+*.log

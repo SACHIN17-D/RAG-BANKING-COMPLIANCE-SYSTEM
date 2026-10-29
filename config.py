@@ -12,6 +12,7 @@ WHAT THIS FILE CONTAINS:
 ===================================================================================
 """
 import os
+import tempfile
 from pathlib import Path
 
 # Load environment variables from .env file if available
@@ -49,8 +50,20 @@ USERS_REGISTRY_FILE = DATA_DIR / "users.json"
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fdic-loan-application-rag-super-secret-jwt-key-2026")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
-# Dedicated directory for persistent vector database storage
-CHROMA_DB_DIR = BASE_DIR / "chroma_db"
+# Cloud Environment Detection (Vercel Serverless & Render Free Tier)
+is_vercel = bool(os.getenv("VERCEL"))
+is_render = (
+    os.getenv("RENDER", "").lower() == "true"
+    or bool(os.getenv("RENDER_SERVICE_ID"))
+    or os.getenv("USE_LIGHTWEIGHT_EMBEDDINGS", "").lower() == "true"
+)
+is_cloud = is_vercel or is_render
+
+# Dedicated directory for persistent vector database storage (system temp for Vercel Serverless)
+if is_vercel:
+    CHROMA_DB_DIR = Path(tempfile.gettempdir()) / "chroma_db"
+else:
+    CHROMA_DB_DIR = BASE_DIR / "chroma_db"
 
 # Multi-tenant Default Configuration
 DEFAULT_COMPANY_ID = "default_fdic"
@@ -88,10 +101,9 @@ PDF_PATH = DATA_DIR / PDF_FILENAME
 # Base default collection name inside ChromaDB
 COLLECTION_NAME = get_company_collection_name(DEFAULT_COMPANY_ID)
 
-# Nomic Embed Text v1.5 model name (or lightweight all-MiniLM-L6-v2 for cloud 512MB RAM free tiers)
-is_render = os.getenv("RENDER", "").lower() == "true"
-default_embed = "sentence-transformers/all-MiniLM-L6-v2" if is_render else "nomic-ai/nomic-embed-text-v1.5"
-default_dim = 384 if is_render else 768
+# Cloud & Lightweight Embedding Detection (Vercel Lambda & Render 512MB RAM optimization)
+default_embed = "onnx-all-MiniLM-L6-v2" if is_cloud else "nomic-ai/nomic-embed-text-v1.5"
+default_dim = 384 if is_cloud else 768
 
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", default_embed)
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", str(default_dim)))
