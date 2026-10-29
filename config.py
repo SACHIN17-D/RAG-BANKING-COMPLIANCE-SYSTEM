@@ -93,13 +93,17 @@ if is_cloud or not is_dir_writable(Path.home()):
 if is_vercel or is_readonly_env or not is_dir_writable(BASE_DIR / "chroma_db"):
     CHROMA_DB_DIR = Path(tmp_path) / "chroma_db"
     bundled_db = BASE_DIR / "chroma_db"
-    if bundled_db.exists() and not (CHROMA_DB_DIR / "chroma.sqlite3").exists():
-        import shutil
-        try:
-            shutil.copytree(bundled_db, CHROMA_DB_DIR, dirs_exist_ok=True)
-            print(f"[Config] Successfully copied pre-indexed ChromaDB to {CHROMA_DB_DIR}")
-        except Exception as e:
-            print(f"[Config Warning] Failed to copy bundled ChromaDB: {e}")
+    bundled_sqlite = bundled_db / "chroma.sqlite3"
+    tmp_sqlite = CHROMA_DB_DIR / "chroma.sqlite3"
+    # Copy if tmp DB is missing or smaller than bundled pre-indexed DB
+    if bundled_sqlite.exists():
+        if not tmp_sqlite.exists() or tmp_sqlite.stat().st_size < bundled_sqlite.stat().st_size:
+            import shutil
+            try:
+                shutil.copytree(bundled_db, CHROMA_DB_DIR, dirs_exist_ok=True)
+                print(f"[Config] Successfully copied pre-indexed ChromaDB to {CHROMA_DB_DIR}", flush=True)
+            except Exception as e:
+                print(f"[Config Warning] Failed to copy bundled ChromaDB: {e}", flush=True)
 else:
     CHROMA_DB_DIR = BASE_DIR / "chroma_db"
 

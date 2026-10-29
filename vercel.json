@@ -10,7 +10,8 @@
         "includeFiles": [
           "static/**",
           "data/**",
-          "chroma_db/**"
+          "chroma_db/**",
+          "models/**"
         ]
       }
     }
