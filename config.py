@@ -50,31 +50,52 @@ USERS_REGISTRY_FILE = DATA_DIR / "users.json"
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fdic-loan-application-rag-super-secret-jwt-key-2026")
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
-# Cloud Environment Detection (Vercel Serverless & Render Free Tier)
-is_vercel = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+def is_dir_writable(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        test_file = path / f".test_w_{os.getpid()}"
+        with open(test_file, "w") as f:
+            f.write("1")
+        test_file.unlink(missing_ok=True)
+        return True
+    except Exception:
+        return False
+
+# Serverless & Read-only Environment Detection
+is_readonly_env = not is_dir_writable(BASE_DIR)
+is_vercel = bool(
+    os.getenv("VERCEL")
+    or os.getenv("VERCEL_ENV")
+    or os.getenv("VERCEL_REGION")
+    or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+    or os.getenv("LAMBDA_TASK_ROOT")
+    or is_readonly_env
+)
 is_render = (
     os.getenv("RENDER", "").lower() == "true"
     or bool(os.getenv("RENDER_SERVICE_ID"))
     or os.getenv("USE_LIGHTWEIGHT_EMBEDDINGS", "").lower() == "true"
 )
-is_cloud = is_vercel or is_render
+is_cloud = is_vercel or is_render or is_readonly_env
 
 # Disable ChromaDB telemetry writes to prevent read-only directory issues
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 # Redirect user cache & home directories to writable temp folder in cloud/serverless
-if is_cloud:
-    tmp_path = tempfile.gettempdir()
+tmp_path = tempfile.gettempdir()
+if is_cloud or not is_dir_writable(Path.home()):
     os.environ["HOME"] = tmp_path
     os.environ["USERPROFILE"] = tmp_path
     os.environ["XDG_CACHE_HOME"] = str(Path(tmp_path) / ".cache")
     os.environ["HF_HOME"] = str(Path(tmp_path) / ".cache" / "huggingface")
 
-# Dedicated directory for persistent vector database storage (system temp for Vercel Serverless)
-if is_vercel:
-    CHROMA_DB_DIR = Path(tempfile.gettempdir()) / "chroma_db"
+# Dedicated directory for persistent vector database storage (system temp for Vercel/Serverless)
+if is_vercel or is_readonly_env or not is_dir_writable(BASE_DIR / "chroma_db"):
+    CHROMA_DB_DIR = Path(tmp_path) / "chroma_db"
 else:
     CHROMA_DB_DIR = BASE_DIR / "chroma_db"
+
+CHROMA_DB_DIR.mkdir(parents=True, exist_ok=True)
 
 # Multi-tenant Default Configuration
 DEFAULT_COMPANY_ID = "default_fdic"
@@ -112,9 +133,9 @@ PDF_PATH = DATA_DIR / PDF_FILENAME
 # Base default collection name inside ChromaDB
 COLLECTION_NAME = get_company_collection_name(DEFAULT_COMPANY_ID)
 
-# Cloud & Lightweight Embedding Detection (Vercel Lambda & Render 512MB RAM optimization)
-default_embed = "onnx-all-MiniLM-L6-v2" if is_cloud else "nomic-ai/nomic-embed-text-v1.5"
-default_dim = 384 if is_cloud else 768
+# Embedding Model: default to ultra-lightweight ONNX model for universal cloud & local compatibility
+default_embed = "onnx-all-MiniLM-L6-v2"
+default_dim = 384
 
 EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", default_embed)
 EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIM", str(default_dim)))

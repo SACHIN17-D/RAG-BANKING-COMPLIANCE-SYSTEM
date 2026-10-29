@@ -149,11 +149,18 @@ class ChromaManager:
     def _init_client(self, collection_name: Optional[str] = None):
         """Ensure DB directory exists and initialize ChromaDB PersistentClient."""
         target_name = collection_name or self.collection_name
-        is_new_dir = not self.db_dir.exists()
-        if is_new_dir:
-            print(f"[ChromaDB Manager] Creating dedicated vector database directory at '{self.db_dir}'...")
+        # Ensure target database directory exists and is writable; fallback to temp directory if read-only
+        try:
             os.makedirs(self.db_dir, exist_ok=True)
-            
+            test_file = Path(self.db_dir) / f".test_w_{os.getpid()}"
+            with open(test_file, "w") as f:
+                f.write("1")
+            test_file.unlink(missing_ok=True)
+        except Exception:
+            self.db_dir = Path(tempfile.gettempdir()) / "chroma_db"
+            os.makedirs(self.db_dir, exist_ok=True)
+
+        is_new_dir = not self.db_dir.exists()
         if self.client is None:
             self.client = chromadb.PersistentClient(path=str(self.db_dir))
         

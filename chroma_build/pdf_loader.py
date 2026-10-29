@@ -45,8 +45,12 @@ def load_pdf_pages(pdf_path: Path) -> List[Dict[str, Any]]:
     
     # Loop through each page in the PDF (1-indexed for user-friendly page citations)
     for page_num, page in enumerate(reader.pages, start=1):
-        # Extract text from the page (fallback to empty string if page contains images/no text)
-        raw_text = page.extract_text() or ""
+        # Extract text from the page safely (fallback to empty string if page contains errors/images)
+        try:
+            raw_text = page.extract_text() or ""
+        except Exception as e:
+            print(f"[PDF Extraction Warning] Page {page_num} extraction issue: {e}")
+            raw_text = ""
         cleaned_text = raw_text.strip()
         
         # Only save pages that contain readable text

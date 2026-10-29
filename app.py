@@ -56,7 +56,7 @@ app.add_middleware(
 )
 
 # Persistent State File
-ACTIVE_STATE_FILE = (Path(tempfile.gettempdir()) / "active_doc.json") if config.is_vercel else config.DATA_DIR / "active_doc.json"
+ACTIVE_STATE_FILE = (Path(tempfile.gettempdir()) / "active_doc.json") if (config.is_vercel or config.is_readonly_env) else config.DATA_DIR / "active_doc.json"
 _chroma_manager: Optional[ChromaManager] = None
 COLLECTION_NAME = "active_policy_document"
 
@@ -70,21 +70,29 @@ def get_chroma_manager() -> ChromaManager:
 
 def get_active_document_info() -> Dict[str, Any]:
     """Reads or determines the current active policy document on disk."""
-    active_file = (Path(tempfile.gettempdir()) / "active_doc.json") if config.is_vercel else ACTIVE_STATE_FILE
+    candidates = [
+        Path(tempfile.gettempdir()) / "active_doc.json",
+        ACTIVE_STATE_FILE,
+        config.DATA_DIR / "active_doc.json"
+    ]
 
     # Check if saved in active_doc.json
-    if active_file.exists():
-        try:
-            with open(active_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                filename = data.get("filename", "")
-                if filename and ((config.DATA_DIR / filename).exists() or ((Path(tempfile.gettempdir()) / "data") / filename).exists()):
-                    return data
-        except Exception:
-            pass
+    for active_file in candidates:
+        if active_file.exists():
+            try:
+                with open(active_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    filename = data.get("filename", "")
+                    if filename and (
+                        (config.DATA_DIR / filename).exists()
+                        or ((Path(tempfile.gettempdir()) / "data") / filename).exists()
+                    ):
+                        return data
+            except Exception:
+                pass
 
     # Default fallback: check for RBIC policy first, then FDIC manual, or any PDF
-    preferred = ["RBIC_Loan_Compliance_Checking_Policy.pdf", "fdic_manual.pdf"]
+    preferred = ["RBIC_Loan_Compliance_Checking_Policy.pdf", "fdic_manual.pdf", "154MD.pdf"]
     for p in preferred:
         if (config.DATA_DIR / p).exists():
             info = {"filename": p, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
@@ -108,7 +116,10 @@ def get_active_document_info() -> Dict[str, Any]:
 
 def save_active_document_info(info: Dict[str, Any]):
     """Saves the active document metadata to JSON."""
-    active_file = (Path(tempfile.gettempdir()) / "active_doc.json") if config.is_vercel else ACTIVE_STATE_FILE
+    if config.is_vercel or config.is_readonly_env or not config.is_dir_writable(config.DATA_DIR):
+        active_file = Path(tempfile.gettempdir()) / "active_doc.json"
+    else:
+        active_file = ACTIVE_STATE_FILE
     active_file.parent.mkdir(parents=True, exist_ok=True)
     with open(active_file, "w", encoding="utf-8") as f:
         json.dump(info, f, indent=2)
@@ -128,7 +139,7 @@ def ensure_active_document_indexed():
             return
 
         doc_path = config.DATA_DIR / filename
-        if not doc_path.exists() and config.is_vercel:
+        if not doc_path.exists():
             doc_path = (Path(tempfile.gettempdir()) / "data") / filename
         if not doc_path.exists():
             return
@@ -238,7 +249,10 @@ async def upload_and_replace_pdf(request: Request):
     if not content_bytes:
         raise HTTPException(status_code=400, detail="Uploaded PDF file is empty.")
 
-    target_dir = (Path(tempfile.gettempdir()) / "data") if config.is_vercel else config.DATA_DIR
+    if config.is_vercel or config.is_readonly_env or not config.is_dir_writable(config.DATA_DIR):
+        target_dir = Path(tempfile.gettempdir()) / "data"
+    else:
+        target_dir = config.DATA_DIR
     target_dir.mkdir(parents=True, exist_ok=True)
     safe_filename = "".join(c for c in filename if c.isalnum() or c in (".", "_", "-")).strip()
     if not safe_filename:
@@ -251,6 +265,7 @@ async def upload_and_replace_pdf(request: Request):
         with open(target_path, "wb") as buffer:
             buffer.write(content_bytes)
     except Exception as e:
+        print(f"[Upload Error] Failed to write file to {target_path}: {e}", flush=True)
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
     # Replace collection in ChromaDB and re-index
@@ -261,6 +276,9 @@ async def upload_and_replace_pdf(request: Request):
         manager.load_and_index_documents(pdf_path=target_path, force_reload=True)
         count = manager.collection.count() if manager.collection else 0
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[Upload Error] Indexing failed: {e}", flush=True)
         raise HTTPException(status_code=500, detail=f"Indexing error: {str(e)}")
 
     info = {
