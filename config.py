@@ -123,7 +123,7 @@ def get_company_dir(company_id: str) -> Path:
 # 3. SOURCE DOCUMENT CONFIGURATION
 # Specifies default target PDF file to be parsed and indexed.
 # =====================================================================
-PDF_FILENAME = os.getenv("PDF_FILENAME", "fdic_manual.pdf")
+PDF_FILENAME = os.getenv("PDF_FILENAME", "154MD.pdf")
 PDF_PATH = DATA_DIR / PDF_FILENAME
 
 # =====================================================================

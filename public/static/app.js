@@ -95,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     openUploadModalBtn.addEventListener('click', () => {
         resetUploadModal();
         uploadModal.classList.add('active');
+        loadServerDocuments();
     });
 
     closeUploadModalBtn.addEventListener('click', () => uploadModal.classList.remove('active'));
@@ -202,6 +203,75 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmUploadBtn.disabled = false;
         }
     });
+
+    // =================================================================
+    // 2B. SERVER-SIDE DOCUMENTS QUICK SWITCH
+    // =================================================================
+    async function loadServerDocuments() {
+        const listEl = document.getElementById('serverDocsList');
+        if (!listEl) return;
+        listEl.innerHTML = '<span style="color:var(--text-muted); font-size:0.75rem;">Loading repository documents...</span>';
+        try {
+            const res = await fetch('/api/documents');
+            if (!res.ok) throw new Error('Failed to load documents');
+            const data = await res.json();
+            const docs = data.documents || [];
+            if (docs.length === 0) {
+                listEl.innerHTML = '<span style="color:var(--text-muted); font-size:0.75rem;">No other documents in repository.</span>';
+                return;
+            }
+            listEl.innerHTML = '';
+            docs.forEach(doc => {
+                const isActive = (doc.filename === currentDocName);
+                const item = document.createElement('div');
+                item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid ' + (isActive ? 'var(--accent-teal)' : 'rgba(255,255,255,0.08)') + '; border-radius:6px; padding:6px 10px; font-size:0.8rem;';
+                item.innerHTML = `
+                    <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;">
+                        <i class="fa-solid fa-file-pdf" style="color:var(--accent-teal); margin-right:6px;"></i>
+                        <strong>${escapeHtml(doc.filename)}</strong> <span style="color:var(--text-muted); font-size:0.75rem;">(${doc.size_mb} MB)</span>
+                    </div>
+                    <button class="select-doc-btn" data-file="${escapeHtml(doc.filename)}" ${isActive ? 'disabled style="opacity:0.6; cursor:default; background:transparent; color:var(--accent-teal); border:1px solid var(--accent-teal); padding:4px 8px; border-radius:4px; font-size:0.75rem;"' : 'style="background:var(--accent-blue); color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:0.75rem; cursor:pointer;"'}>
+                        ${isActive ? '<i class="fa-solid fa-check"></i> Active' : '<i class="fa-solid fa-bolt"></i> Activate'}
+                    </button>
+                `;
+                const btn = item.querySelector('.select-doc-btn');
+                if (!isActive && btn) {
+                    btn.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        await activateServerDocument(doc.filename);
+                    });
+                }
+                listEl.appendChild(item);
+            });
+        } catch (e) {
+            listEl.innerHTML = `<span style="color:var(--accent-rose); font-size:0.75rem;">Failed to load documents</span>`;
+        }
+    }
+
+    async function activateServerDocument(filename) {
+        uploadProgress.style.display = 'block';
+        uploadProgressBar.style.width = '50%';
+        uploadProgressText.textContent = `Activating & indexing ${filename}...`;
+        try {
+            const res = await fetch('/api/select_document', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Activation failed');
+            uploadProgressBar.style.width = '100%';
+            uploadProgressText.textContent = `Success! Activated ${filename} (${data.total_chunks} chunks).`;
+            setTimeout(async () => {
+                uploadModal.classList.remove('active');
+                await checkSystemStatus();
+                dialogueHistory = [];
+                showNotification(`Active policy updated to: ${data.active_document}`);
+            }, 1000);
+        } catch (err) {
+            uploadProgressText.innerHTML = `<span style="color: var(--accent-rose)">Error: ${escapeHtml(err.message)}</span>`;
+        }
+    }
 
     // =================================================================
     // 3. TABS SWITCHING LOGIC

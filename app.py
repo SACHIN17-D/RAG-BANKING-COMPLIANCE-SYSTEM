@@ -92,8 +92,8 @@ def get_active_document_info() -> Dict[str, Any]:
             except Exception:
                 pass
 
-    # Default fallback: check for RBIC policy first, then FDIC manual, or any PDF
-    preferred = ["RBIC_Loan_Compliance_Checking_Policy.pdf", "fdic_manual.pdf", "154MD.pdf"]
+    # Default fallback: check for 154MD.pdf (RBI Master Direction) first, then RBIC, FDIC
+    preferred = ["154MD.pdf", "RBIC_Loan_Compliance_Checking_Policy.pdf", "fdic_manual.pdf"]
     for p in preferred:
         if (config.DATA_DIR / p).exists():
             info = {"filename": p, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
@@ -302,6 +302,57 @@ async def upload_and_replace_pdf(request: Request):
         "status": "success",
         "message": f"Successfully replaced policy document with '{safe_filename}' ({count} chunks indexed).",
         "active_document": safe_filename,
+        "total_chunks": count
+    }
+
+
+@app.get("/api/documents")
+@app.get("/documents")
+async def list_available_documents():
+    """Lists all policy documents pre-installed or uploaded on the server."""
+    dirs_to_check = [config.DATA_DIR, Path(tempfile.gettempdir()) / "data"]
+    docs = []
+    seen = set()
+    for d in dirs_to_check:
+        if d.exists():
+            for p in d.glob("*.pdf"):
+                if p.name not in seen:
+                    seen.add(p.name)
+                    docs.append({
+                        "filename": p.name,
+                        "size_bytes": p.stat().st_size,
+                        "size_mb": round(p.stat().st_size / (1024 * 1024), 2)
+                    })
+    info = get_active_document_info()
+    return {"active_document": info.get("filename"), "documents": docs}
+
+
+@app.post("/api/select_document")
+@app.post("/select_document")
+async def select_policy_document(request: Request):
+    """Switches the active policy document to one already present on the server."""
+    body = await request.json()
+    filename = body.get("filename", "").strip()
+    if not filename:
+        raise HTTPException(status_code=400, detail="Missing 'filename'")
+
+    target_path = config.DATA_DIR / filename
+    if not target_path.exists():
+        target_path = (Path(tempfile.gettempdir()) / "data") / filename
+    if not target_path.exists():
+        raise HTTPException(status_code=404, detail=f"Document '{filename}' not found on server.")
+
+    manager = get_chroma_manager()
+    manager.set_collection(COLLECTION_NAME)
+    manager.load_and_index_documents(pdf_path=target_path, force_reload=True)
+    count = manager.collection.count() if manager.collection else 0
+
+    info = {"filename": filename, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
+    save_active_document_info(info)
+    return {
+        "status": "success",
+        "message": f"Successfully activated '{filename}' ({count} chunks indexed).",
+        "active_document": filename,
         "total_chunks": count
     }
 
