@@ -18,6 +18,23 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, Res
 from pydantic import BaseModel, Field
 
 import config
+
+# Fix read-only filesystem issues on Vercel/serverless environments
+if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    tmp = tempfile.gettempdir()
+    os.environ["HOME"] = tmp
+    os.environ["USERPROFILE"] = tmp
+    os.environ["XDG_CACHE_HOME"] = str(Path(tmp) / ".cache")
+    os.environ["HF_HOME"] = str(Path(tmp) / ".cache" / "huggingface")
+
+try:
+    from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
+    safe_onnx_dir = Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / ONNXMiniLM_L6_V2.MODEL_NAME
+    safe_onnx_dir.mkdir(parents=True, exist_ok=True)
+    ONNXMiniLM_L6_V2.DOWNLOAD_PATH = safe_onnx_dir
+except Exception:
+    pass
+
 from chroma_build.chroma_store import ChromaManager
 from rag_chat import get_llm_response, get_llm_response_stream, sanitize_text
 

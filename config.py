@@ -51,13 +51,24 @@ JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fdic-loan-application-rag-super-se
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))
 
 # Cloud Environment Detection (Vercel Serverless & Render Free Tier)
-is_vercel = bool(os.getenv("VERCEL"))
+is_vercel = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
 is_render = (
     os.getenv("RENDER", "").lower() == "true"
     or bool(os.getenv("RENDER_SERVICE_ID"))
     or os.getenv("USE_LIGHTWEIGHT_EMBEDDINGS", "").lower() == "true"
 )
 is_cloud = is_vercel or is_render
+
+# Disable ChromaDB telemetry writes to prevent read-only directory issues
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
+# Redirect user cache & home directories to writable temp folder in cloud/serverless
+if is_cloud:
+    tmp_path = tempfile.gettempdir()
+    os.environ["HOME"] = tmp_path
+    os.environ["USERPROFILE"] = tmp_path
+    os.environ["XDG_CACHE_HOME"] = str(Path(tmp_path) / ".cache")
+    os.environ["HF_HOME"] = str(Path(tmp_path) / ".cache" / "huggingface")
 
 # Dedicated directory for persistent vector database storage (system temp for Vercel Serverless)
 if is_vercel:

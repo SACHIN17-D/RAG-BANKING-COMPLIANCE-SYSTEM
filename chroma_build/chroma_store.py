@@ -12,6 +12,7 @@ WHAT THIS FILE CONTAINS:
 """
 import os
 import sys
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -24,6 +25,15 @@ import chromadb
 from chromadb.utils import embedding_functions
 from tqdm import tqdm
 import config
+
+# Safely patch ChromaDB ONNX model download directory to writable temporary storage (avoids read-only filesystem errors)
+try:
+    from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
+    safe_onnx_dir = Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / ONNXMiniLM_L6_V2.MODEL_NAME
+    safe_onnx_dir.mkdir(parents=True, exist_ok=True)
+    ONNXMiniLM_L6_V2.DOWNLOAD_PATH = safe_onnx_dir
+except Exception:
+    pass
 
 try:
     from .pdf_loader import chunk_pdf_documents
@@ -111,6 +121,13 @@ class ChromaManager:
 
         if is_cloud_lightweight:
             print(f"[ChromaDB Manager] Initializing Ultra-Lightweight ONNX Embedding Function (Zero-PyTorch, ~40MB RAM)...", flush=True)
+            try:
+                from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
+                safe_onnx_dir = Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / ONNXMiniLM_L6_V2.MODEL_NAME
+                safe_onnx_dir.mkdir(parents=True, exist_ok=True)
+                ONNXMiniLM_L6_V2.DOWNLOAD_PATH = safe_onnx_dir
+            except Exception:
+                pass
             self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
         elif "nomic" in self.model_name.lower():
             try:
