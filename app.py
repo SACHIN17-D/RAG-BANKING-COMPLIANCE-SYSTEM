@@ -31,6 +31,10 @@ if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
 try:
     from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
     safe_onnx_dir = Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / ONNXMiniLM_L6_V2.MODEL_NAME
+    model_file = safe_onnx_dir / "onnx" / "model.onnx"
+    if model_file.exists() and model_file.stat().st_size < 85000000:
+        import shutil
+        shutil.rmtree(safe_onnx_dir, ignore_errors=True)
     safe_onnx_dir.mkdir(parents=True, exist_ok=True)
     ONNXMiniLM_L6_V2.DOWNLOAD_PATH = safe_onnx_dir
 except Exception:
@@ -195,6 +199,17 @@ async def get_system_status():
             index_error = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
     has_groq = bool(os.getenv("GROQ_API_KEY") or config.GROQ_API_KEY)
 
+    bundled_db = config.BASE_DIR / "chroma_db"
+    tmp_chroma = Path(tempfile.gettempdir()) / "chroma_db"
+    diag = {
+        "base_dir": str(config.BASE_DIR),
+        "bundled_db_exists": bundled_db.exists(),
+        "bundled_files": [p.name for p in bundled_db.iterdir()] if bundled_db.exists() else [],
+        "tmp_chroma_exists": tmp_chroma.exists(),
+        "tmp_chroma_files": [p.name for p in tmp_chroma.iterdir()] if tmp_chroma.exists() else [],
+        "model_file_size": (Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / "all-MiniLM-L6-v2" / "onnx" / "model.onnx").stat().st_size if (Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / "all-MiniLM-L6-v2" / "onnx" / "model.onnx").exists() else 0
+    }
+
     return {
         "status": "online",
         "active_document": filename,
@@ -206,7 +221,8 @@ async def get_system_status():
         "has_groq_api_key": has_groq,
         "default_top_k": config.DEFAULT_TOP_K,
         "default_min_score": config.DEFAULT_MIN_SCORE,
-        "debug_error": index_error
+        "debug_error": index_error,
+        "diag": diag
     }
 
 

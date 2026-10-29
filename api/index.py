@@ -14,6 +14,11 @@ os.environ["HF_HOME"] = str(Path(tmp) / ".cache" / "huggingface")
 try:
     from chromadb.utils.embedding_functions.onnx_mini_lm_l6_v2 import ONNXMiniLM_L6_V2
     safe_onnx_dir = Path(tmp) / ".cache" / "chroma" / "onnx_models" / ONNXMiniLM_L6_V2.MODEL_NAME
+    model_file = safe_onnx_dir / "onnx" / "model.onnx"
+    # If model is incomplete or corrupted (<85MB), purge so ChromaDB re-downloads cleanly
+    if model_file.exists() and model_file.stat().st_size < 85000000:
+        import shutil
+        shutil.rmtree(safe_onnx_dir, ignore_errors=True)
     safe_onnx_dir.mkdir(parents=True, exist_ok=True)
     ONNXMiniLM_L6_V2.DOWNLOAD_PATH = safe_onnx_dir
 except Exception:
