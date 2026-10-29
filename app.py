@@ -153,6 +153,7 @@ def ensure_active_document_indexed():
             print(f"[Startup] Completed indexing '{filename}' into ChromaDB.", flush=True)
     except Exception as e:
         print(f"[Startup Warning] Background indexing encountered: {e}", flush=True)
+        raise e
 
 
 # =====================================================================
@@ -184,9 +185,14 @@ async def get_system_status():
     manager = get_chroma_manager()
     manager.set_collection(COLLECTION_NAME)
     count = manager.collection.count() if manager.collection else 0
+    index_error = None
     if count == 0 and config.is_vercel:
-        ensure_active_document_indexed()
-        count = manager.collection.count() if manager.collection else 0
+        try:
+            ensure_active_document_indexed()
+            count = manager.collection.count() if manager.collection else 0
+        except Exception as e:
+            import traceback
+            index_error = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
     has_groq = bool(os.getenv("GROQ_API_KEY") or config.GROQ_API_KEY)
 
     return {
@@ -199,7 +205,8 @@ async def get_system_status():
         "llm_model": config.LLM_MODEL,
         "has_groq_api_key": has_groq,
         "default_top_k": config.DEFAULT_TOP_K,
-        "default_min_score": config.DEFAULT_MIN_SCORE
+        "default_min_score": config.DEFAULT_MIN_SCORE,
+        "debug_error": index_error
     }
 
 
@@ -344,8 +351,13 @@ async def select_policy_document(request: Request):
 
     manager = get_chroma_manager()
     manager.set_collection(COLLECTION_NAME)
-    manager.load_and_index_documents(pdf_path=target_path, force_reload=True)
-    count = manager.collection.count() if manager.collection else 0
+    try:
+        manager.load_and_index_documents(pdf_path=target_path, force_reload=True)
+        count = manager.collection.count() if manager.collection else 0
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Indexing error: {type(e).__name__}: {str(e)} | {tb[-400:]}")
 
     info = {"filename": filename, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
     save_active_document_info(info)
@@ -496,8 +508,13 @@ async def reindex_active_document():
 
     manager = get_chroma_manager()
     manager.set_collection(COLLECTION_NAME)
-    manager.load_and_index_documents(pdf_path=target_path, force_reload=True)
-    count = manager.collection.count() if manager.collection else 0
+    try:
+        manager.load_and_index_documents(pdf_path=target_path, force_reload=True)
+        count = manager.collection.count() if manager.collection else 0
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Indexing error: {type(e).__name__}: {str(e)} | {tb[-400:]}")
 
     return {
         "status": "success",
