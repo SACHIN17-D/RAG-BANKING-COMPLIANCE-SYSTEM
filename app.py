@@ -183,47 +183,55 @@ class SearchRequest(BaseModel):
 @app.get("/status")
 async def get_system_status():
     """Returns system status, active policy document name, chunk count, and model settings."""
-    info = get_active_document_info()
-    filename = info.get("filename", "No Document Uploaded")
-    
-    manager = get_chroma_manager()
-    manager.set_collection(COLLECTION_NAME)
-    count = manager.collection.count() if manager.collection else 0
-    index_error = None
-    if count == 0 and config.is_vercel:
-        try:
-            ensure_active_document_indexed()
-            count = manager.collection.count() if manager.collection else 0
-        except Exception as e:
-            import traceback
-            index_error = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
-    has_groq = bool(os.getenv("GROQ_API_KEY") or config.GROQ_API_KEY)
+    try:
+        info = get_active_document_info()
+        filename = info.get("filename", "No Document Uploaded")
+        
+        manager = get_chroma_manager()
+        manager.set_collection(COLLECTION_NAME)
+        count = manager.collection.count() if manager.collection else 0
+        index_error = None
+        if count == 0 and config.is_vercel:
+            try:
+                ensure_active_document_indexed()
+                count = manager.collection.count() if manager.collection else 0
+            except Exception as e:
+                import traceback
+                index_error = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+        has_groq = bool(os.getenv("GROQ_API_KEY") or config.GROQ_API_KEY)
 
-    bundled_db = config.BASE_DIR / "chroma_db"
-    tmp_chroma = Path(tempfile.gettempdir()) / "chroma_db"
-    diag = {
-        "base_dir": str(config.BASE_DIR),
-        "bundled_db_exists": bundled_db.exists(),
-        "bundled_files": [p.name for p in bundled_db.iterdir()] if bundled_db.exists() else [],
-        "tmp_chroma_exists": tmp_chroma.exists(),
-        "tmp_chroma_files": [p.name for p in tmp_chroma.iterdir()] if tmp_chroma.exists() else [],
-        "model_file_size": (Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / "all-MiniLM-L6-v2" / "onnx" / "model.onnx").stat().st_size if (Path(tempfile.gettempdir()) / ".cache" / "chroma" / "onnx_models" / "all-MiniLM-L6-v2" / "onnx" / "model.onnx").exists() else 0
-    }
+        bundled_db = config.BASE_DIR / "chroma_db"
+        tmp_chroma = Path(tempfile.gettempdir()) / "chroma_db"
+        diag = {
+            "base_dir": str(config.BASE_DIR),
+            "bundled_db_exists": bundled_db.exists(),
+            "tmp_chroma_exists": tmp_chroma.exists(),
+        }
 
-    return {
-        "status": "online",
-        "active_document": filename,
-        "total_chunks": count,
-        "is_populated": count > 0,
-        "embedding_model": config.EMBEDDING_MODEL_NAME,
-        "embedding_dimension": config.EMBEDDING_DIM,
-        "llm_model": config.LLM_MODEL,
-        "has_groq_api_key": has_groq,
-        "default_top_k": config.DEFAULT_TOP_K,
-        "default_min_score": config.DEFAULT_MIN_SCORE,
-        "debug_error": index_error,
-        "diag": diag
-    }
+        return {
+            "status": "online",
+            "active_document": filename,
+            "total_chunks": count,
+            "is_populated": count > 0,
+            "embedding_model": config.EMBEDDING_MODEL_NAME,
+            "embedding_dimension": config.EMBEDDING_DIM,
+            "llm_model": config.LLM_MODEL,
+            "has_groq_api_key": has_groq,
+            "default_top_k": config.DEFAULT_TOP_K,
+            "default_min_score": config.DEFAULT_MIN_SCORE,
+            "debug_error": index_error,
+            "diag": diag
+        }
+    except Exception as e:
+        import traceback
+        return JSONResponse(status_code=200, content={
+            "status": "error",
+            "total_chunks": 0,
+            "is_populated": False,
+            "active_document": "154MD.pdf",
+            "error_msg": str(e),
+            "traceback": traceback.format_exc()
+        })
 
 
 # =====================================================================
