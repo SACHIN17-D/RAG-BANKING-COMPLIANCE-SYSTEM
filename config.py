@@ -92,6 +92,14 @@ if is_cloud or not is_dir_writable(Path.home()):
 # Dedicated directory for persistent vector database storage (system temp for Vercel/Serverless)
 if is_vercel or is_readonly_env or not is_dir_writable(BASE_DIR / "chroma_db"):
     CHROMA_DB_DIR = Path(tmp_path) / "chroma_db"
+    bundled_db = BASE_DIR / "chroma_db"
+    if bundled_db.exists() and not (CHROMA_DB_DIR / "chroma.sqlite3").exists():
+        import shutil
+        try:
+            shutil.copytree(bundled_db, CHROMA_DB_DIR, dirs_exist_ok=True)
+            print(f"[Config] Successfully copied pre-indexed ChromaDB to {CHROMA_DB_DIR}")
+        except Exception as e:
+            print(f"[Config Warning] Failed to copy bundled ChromaDB: {e}")
 else:
     CHROMA_DB_DIR = BASE_DIR / "chroma_db"
 

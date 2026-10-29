@@ -9,7 +9,8 @@
         "memory": 1024,
         "includeFiles": [
           "static/**",
-          "data/**"
+          "data/**",
+          "chroma_db/**"
         ]
       }
     }

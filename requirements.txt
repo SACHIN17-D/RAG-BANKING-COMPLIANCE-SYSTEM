@@ -8,3 +8,5 @@ uvicorn>=0.20.0
 python-multipart>=0.0.12
 tqdm>=4.0.0
 httpx>=0.24.0
+onnxruntime>=1.14.0
+tokenizers>=0.13.0

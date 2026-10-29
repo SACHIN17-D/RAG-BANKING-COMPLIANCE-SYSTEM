@@ -24,4 +24,14 @@ root_dir = Path(__file__).resolve().parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
+# Copy bundled pre-indexed ChromaDB to writable /tmp on cold start
+bundled_db = root_dir / "chroma_db"
+tmp_db = Path(tmp) / "chroma_db"
+if bundled_db.exists() and not (tmp_db / "chroma.sqlite3").exists():
+    import shutil
+    try:
+        shutil.copytree(bundled_db, tmp_db, dirs_exist_ok=True)
+    except Exception:
+        pass
+
 from app import app
