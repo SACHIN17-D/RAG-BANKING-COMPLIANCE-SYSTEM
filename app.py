@@ -76,9 +76,9 @@ def get_chroma_manager() -> ChromaManager:
 def get_active_document_info() -> Dict[str, Any]:
     """Reads or determines the current active policy document on disk."""
     candidates = [
-        Path(tempfile.gettempdir()) / "active_doc.json",
+        config.DATA_DIR / "active_doc.json",
         ACTIVE_STATE_FILE,
-        config.DATA_DIR / "active_doc.json"
+        Path(tempfile.gettempdir()) / "active_doc.json"
     ]
 
     # Check if saved in active_doc.json
@@ -87,8 +87,9 @@ def get_active_document_info() -> Dict[str, Any]:
             try:
                 with open(active_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    filename = data.get("filename", "")
-                    if filename and (
+                    filename = data.get("filename", "").strip()
+                    # Skip invalid or test filenames
+                    if filename and not filename.startswith("test_") and (
                         (config.DATA_DIR / filename).exists()
                         or ((Path(tempfile.gettempdir()) / "data") / filename).exists()
                     ):
@@ -108,12 +109,13 @@ def get_active_document_info() -> Dict[str, Any]:
             return info
 
     for p in config.DATA_DIR.glob("*.pdf"):
-        info = {"filename": p.name, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
-        try:
-            save_active_document_info(info)
-        except Exception:
-            pass
-        return info
+        if not p.name.startswith("test_"):
+            info = {"filename": p.name, "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")}
+            try:
+                save_active_document_info(info)
+            except Exception:
+                pass
+            return info
 
     info = {"filename": "No Document Uploaded", "updated_at": ""}
     return info
@@ -121,13 +123,17 @@ def get_active_document_info() -> Dict[str, Any]:
 
 def save_active_document_info(info: Dict[str, Any]):
     """Saves the active document metadata to JSON."""
-    if config.is_vercel or config.is_readonly_env or not config.is_dir_writable(config.DATA_DIR):
-        active_file = Path(tempfile.gettempdir()) / "active_doc.json"
-    else:
-        active_file = ACTIVE_STATE_FILE
-    active_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(active_file, "w", encoding="utf-8") as f:
-        json.dump(info, f, indent=2)
+    targets = [
+        Path(tempfile.gettempdir()) / "active_doc.json",
+        config.DATA_DIR / "active_doc.json"
+    ]
+    for target in targets:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with open(target, "w", encoding="utf-8") as f:
+                json.dump(info, f, indent=2)
+        except Exception:
+            pass
 
 
 import threading
