@@ -457,6 +457,17 @@ if static_dir.exists():
     app.mount("/api/static", StaticFiles(directory=str(static_dir)), name="api_static")
 
 
+@app.get("/static/{file_path:path}")
+async def serve_static_file(file_path: str):
+    target = static_dir / file_path
+    if not target.exists():
+        target = config.BASE_DIR / "public" / "static" / file_path
+    if target.exists() and target.is_file():
+        media_type = "text/css" if file_path.endswith(".css") else ("application/javascript" if file_path.endswith(".js") else None)
+        return FileResponse(target, media_type=media_type)
+    raise HTTPException(status_code=404, detail="Static asset not found")
+
+
 @app.get("/healthz")
 @app.get("/health")
 @app.get("/api/healthz")
