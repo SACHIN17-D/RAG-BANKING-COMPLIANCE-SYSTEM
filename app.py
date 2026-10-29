@@ -376,16 +376,19 @@ async def reindex_active_document():
 static_dir = config.BASE_DIR / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    app.mount("/api/static", StaticFiles(directory=str(static_dir)), name="api_static")
 
 
 @app.get("/healthz")
 @app.get("/health")
+@app.get("/api/healthz")
 async def health_check():
-    """Health check endpoint for cloud hosting providers (Render, Railway, etc.)."""
+    """Health check endpoint for cloud hosting providers (Render, Railway, Vercel, etc.)."""
     return {"status": "ok", "app": "CrediSense AI Copilot"}
 
 
 @app.get("/favicon.ico")
+@app.get("/api/favicon.ico")
 async def favicon():
     fav = config.BASE_DIR / "static" / "favicon.ico"
     if fav.exists():
@@ -394,6 +397,10 @@ async def favicon():
 
 
 @app.get("/")
+@app.get("/api")
+@app.get("/api/")
+@app.get("/api/index")
+@app.get("/api/index.py")
 async def root():
     index_file = config.BASE_DIR / "static" / "index.html"
     if index_file.exists():
