@@ -238,8 +238,8 @@ class ChromaManager:
             print("[ChromaDB Manager] Warning: No chunks generated from PDF.")
             return self.collection
 
-        # Process chunks in mini-batches of 25 for efficient database insertion
-        batch_size = 25
+        # Process chunks in batches (100 for fast ONNX runtime inference, 50 for Nomic)
+        batch_size = 50 if "nomic" in self.model_name.lower() else 100
         total_chunks = len(chunks)
         batches = [chunks[i:i + batch_size] for i in range(0, total_chunks, batch_size)]
 

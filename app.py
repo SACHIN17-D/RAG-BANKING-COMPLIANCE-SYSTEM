@@ -451,6 +451,8 @@ async def favicon():
 
 
 @app.get("/")
+@app.get("/index.html")
+@app.get("/index")
 @app.get("/api")
 @app.get("/api/")
 @app.get("/api/index")

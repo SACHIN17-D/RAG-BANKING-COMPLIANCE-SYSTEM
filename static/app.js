@@ -174,8 +174,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
 
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Upload failed');
+            const rawText = await res.text();
+            let data = null;
+            try {
+                data = JSON.parse(rawText);
+            } catch (e) {
+                // Not valid JSON (e.g. 504 Gateway Timeout or 500 plain text from serverless proxy)
+            }
+
+            if (!res.ok) {
+                const errorDetail = (data && data.detail) ? data.detail : (rawText || `Server responded with status ${res.status}`);
+                throw new Error(errorDetail);
+            }
 
             uploadProgressBar.style.width = '100%';
             uploadProgressText.textContent = `Success! Replaced policy (${data.total_chunks} chunks).`;
@@ -560,13 +570,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const res = await fetch('/api/reindex', { method: 'POST' });
-            const data = await res.json();
+            const rawText = await res.text();
+            let data = null;
+            try {
+                data = JSON.parse(rawText);
+            } catch (e) {}
 
-            if (res.ok) {
+            if (res.ok && data) {
                 reindexStatus.innerHTML = `<span style="color: var(--accent-emerald)"><i class="fa-solid fa-circle-check"></i> ${data.message}</span>`;
                 checkSystemStatus();
             } else {
-                throw new Error(data.detail || 'Reindexing failed');
+                throw new Error((data && data.detail) ? data.detail : (rawText || `Reindexing failed (${res.status})`));
             }
         } catch (err) {
             reindexStatus.innerHTML = `<span style="color: var(--accent-rose)"><i class="fa-solid fa-triangle-exclamation"></i> ${err.message}</span>`;
